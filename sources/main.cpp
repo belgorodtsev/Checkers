@@ -2,9 +2,10 @@
 #include <Board.hpp>
 
 int main(int argc, char* argv[]) {
+    // сделать лог в классе game который будут записываться ходы
     Board check(argv[1]);
-    auto res = check.minimax_root(3);
+    check.minimaxRoot('w', 3);
     check.make_best_move();
-    check.save_to_file();
+    check.saveToFile("C:\\Users\\Sergei\\Desktop\\save_data.txt");
     return 0;
 }

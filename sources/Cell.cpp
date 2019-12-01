@@ -3,24 +3,35 @@
 Cell::Cell() : _state(Cell::State::BLANK)
 {}
 
-Cell::Cell(State state)  :
-    _state(state)
+Cell::Cell(State state, bool queen)  :
+    _state(state),
+    _queen(queen)
 {}
 
-Cell::State Cell::get_state() const {
+Cell::State Cell::getState() const {
     return _state;
 }
 
-void Cell::set_state(State state) {
+void Cell::setState(State state) {
     _state = state;
 }
 
-char Cell::get_color() const {
+bool Cell::isQueen() const {
+    return _queen;
+}
+
+void Cell::setQueen(bool q) {
+    _queen = q;
+}
+
+
+char Cell::getSymbolPieces() const {
     if (_state == Cell::State::WHITE)
-        return 'W';
+        return _queen ? WHITE_QUEEN : WHITE;
     else if (_state == Cell::State::BLACK)
-        return 'B';
-    else
-        return '0';
+        return _queen ? BLACK_QUEEN : BLACK;
+    else {
+        return BLANK;
+    }
 }
 
