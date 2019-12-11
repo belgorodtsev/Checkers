@@ -12,7 +12,7 @@
 
 int main(int argc, char* argv[]) {
     Game game(argv[1]);
-    game.calculateBestMove(WHITE, 4);
+    game.calculateBestMove(WHITE, 6);
     game.makeBestMove();
     game.saveGame(argv[2]);
     return 0;
@@ -29,7 +29,7 @@ int main(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
     Game game;
-    game.play(WHITE, 4);
+    game.play(WHITE, 5);
     return 0;
 }
 ```

@@ -1,12 +1,86 @@
-#include "Board.hpp"
+﻿#include "Board.hpp"
+#include <IO.hpp>
 
-Board::Board() : 
-    _startPosition(pos(0,0))
-{}
+Board::Board() :
+    _startPosition(pos(0, 0)),
+    _endPosition({ pos(0,0) ,Board::MoveResult::PROHIBITED }),
+    _isGameOver(false),
+    _log(logPath.string()) {
+    setInitialPlacement();
+}
 
-Board::Board(const std::string& filename) :
-    _startPosition(pos(0, 0)) {
-    parsing(filename);
+Board::Board(const std::string& in, const std::string& out) :
+    _startPosition(pos(0, 0)),
+    _endPosition({ pos(0,0) ,Board::MoveResult::PROHIBITED }),
+    _isGameOver(false),
+    _log(logPath.string()),
+    _outPath(out) {
+    parsing(in);
+}
+
+bool Board::isGameOver() const {
+    return _isGameOver;
+}
+
+bool Board::empty(const char color) const {
+    auto findState = color == WHITE ? Cell::State::WHITE : Cell::State::BLACK;
+    for (auto i : _cells) {
+        if (i.second.getState() == findState)
+            return false;
+    }
+    return true;
+}
+
+bool Board::checkPiecesBecomeQueen(const pos& startPos, const pos& endPos) const {
+    if (_cells.at(startPos).isQueen())
+        return false;
+    if (_cells.at(startPos).getState() == Cell::State::WHITE) {
+        if (endPos.second == 0)
+            return true;
+    }
+    else if (_cells.at(startPos).getState() == Cell::State::BLACK) {
+        if (endPos.second == 7)
+            return true;
+    }
+    return false;
+}
+
+Board::MoveResult Board::checkMove(const pos& startPos, const pos& endPos, bool color) {
+    Board::MoveResult result = Board::MoveResult::PROHIBITED;
+    auto startCellState = _cells.at(startPos).getState();
+    if (startCellState == Cell::State::BLANK)
+        return result;
+
+    if (_cells.at(startPos).isQueen())
+        return checkQueenMove(startPos, endPos);
+
+    const int dX = startPos.first - endPos.first;
+    const int dY = startPos.second - endPos.second;
+    if (endPos.first >= 0 && endPos.first < _boardSize &&
+        endPos.second >= 0 && endPos.second < _boardSize) {
+        auto targetCellState = _cells.at(endPos).getState();
+        if (targetCellState == Cell::State::BLANK) {      
+            if (abs(dX) == 2 && abs(dY) == 2) {
+                pos victimPos((startPos.first + endPos.first) / 2,
+                    (startPos.second + endPos.second) / 2);
+                auto victimCellState = _cells.at(victimPos).getState();
+                if (targetCellState != victimCellState &&
+                    targetCellState != startCellState &&
+                    startCellState != victimCellState)
+                    result = Board::MoveResult::SUCCESSFUL_COMBAT;
+            } else if ((abs(dX) == 1 && dY == 1 && color) ||
+                (abs(dX) == 1 && dY == -1 && !color)) {
+                result = Board::MoveResult::SUCCESSFUL_MOVE;
+                // проверяем стенет ли в конечной позиции пешка 
+                // дамкой, если да, то добавляем этот ход в мапу 
+                if (checkPiecesBecomeQueen(startPos, endPos)) {
+                    const auto move = std::make_pair(startPos, endPos);
+                    _movesBecomeQueen.insert({ std::move(move), true });
+                }
+            }
+        }
+    }
+    return result;
 }
 
 Board::MoveResult Board::checkDiagonalMovement(
@@ -18,18 +92,21 @@ Board::MoveResult Board::checkDiagonalMovement(
         if (w == Board::Way::rightDown) {
             ++start.first;
             ++start.second;
-        } else if (w == Board::Way::rihgtUp) {
+        }
+        else if (w == Board::Way::rihgtUp) {
             ++start.first;
             --start.second;
-        } else if (w == Board::Way::leftDown) {
+        }
+        else if (w == Board::Way::leftDown) {
             --start.first;
             ++start.second;
-        } else if (w == Board::Way::leftUp) {
+        }
+        else if (w == Board::Way::leftUp) {
             --start.first;
             --start.second;
         }
-        auto cur�ell = start;
-        auto currCellState = _cells.at(cur�ell).getState();
+        auto curСell = start;
+        auto currCellState = _cells.at(curСell).getState();
         if (currCellState == Cell::State::BLANK)
             continue;
         else if (currCellState == _cells.at(startPos).getState())
@@ -62,52 +139,46 @@ Board::MoveResult Board::checkQueenMove(const pos& startPos, const pos& endPos) 
     return result;
 }
 
-Board::MoveResult Board::checkMove(const pos& startPos, const pos& endPos, bool direction) {
-    Board::MoveResult result = Board::MoveResult::PROHIBITED;
-    auto startCellState = _cells.at(startPos).getState();
-    if (startCellState == Cell::State::BLANK)
-        return result;
-
-    if (_cells.at(startPos).isQueen())
-        return checkQueenMove(startPos, endPos);
-
+pos Board::getVictimQueen(const pos& startPos, const pos& endPos) {
     const int dX = startPos.first - endPos.first;
     const int dY = startPos.second - endPos.second;
-    if (endPos.first >= 0 && endPos.first < _boardSize &&
-        endPos.second >= 0 && endPos.second < _boardSize) {
-        auto targetCellState = _cells.at(endPos).getState();
-        if (targetCellState == Cell::State::BLANK) {      
-            if (abs(dX) == 2 && abs(dY) == 2) {
-                pos victimPos((startPos.first + endPos.first) / 2,
-                    (startPos.second + endPos.second) / 2);
-                auto victimCellState = _cells.at(victimPos).getState();
-                if (targetCellState != victimCellState &&
-                    targetCellState != startCellState &&
-                    startCellState != victimCellState)
-                    result = Board::MoveResult::SUCCESSFUL_COMBAT;
-            } else if ((abs(dX) == 1 && dY == 1 && direction) ||
-                (abs(dX) == 1 && dY == -1 && !direction)) {
-                result = Board::MoveResult::SUCCESSFUL_MOVE;
-                auto res = checkPiecesTransQueen(endPos);
-                if (res) {
-                    const auto move = std::make_pair(startPos, endPos);
-                    _movesTransInQueen.insert({ std::move(move), true });
-                }
-            }
+    auto victimCellState = (_cells.at(startPos).getState() == Cell::State::WHITE)
+        ? Cell::State::BLACK : Cell::State::WHITE;
+    auto start = startPos;
+    while (start != endPos) {
+        if (dX < 0 && dY < 0) {
+            ++start.first;
+            ++start.second;
         }
+        else if (dX < 0 && dY > 0) {
+            ++start.first;
+            --start.second;
+        }
+        else if (dX > 0 && dY < 0) {
+            --start.first;
+            ++start.second;
+        }
+        else if (dX > 0 && dY > 0) {
+            --start.first;
+            --start.second;
+        }
+        auto curCell = start;
+        auto currCellState = _cells.at(curCell).getState();
+        if (currCellState == victimCellState)
+            return curCell;
     }
-    return result;
 }
 
-pos Board::getCombatPosForPieces(const pos& startPos, const pos& prevPos, std::list<pos>& enemys) {
-    auto startCellState = (_moveColor == true) ? Cell::State::WHITE : Cell::State::BLACK;
+pos Board::getCombatPosForPieces(const pos& startPos, const pos& prevPos,
+    std::list<std::pair<pos, Cell>>& enemys) {
+    auto startCellState = _cells.at(prevPos).getState();
     pos endPos = pos(0, 0);
     pos victimPos = pos(0, 0);
     std::swap(_cells.at(startPos), _cells.at(prevPos));
     auto possiblePos = {
             pos(startPos.first + 2, startPos.second + 2), // direction - never mind
-            pos(startPos.first - 2, startPos.second + 2),
             pos(startPos.first + 2, startPos.second - 2),
+            pos(startPos.first - 2, startPos.second + 2),
             pos(startPos.first - 2, startPos.second - 2) };
     for (auto position : possiblePos) {
         if (position == prevPos)
@@ -127,11 +198,18 @@ pos Board::getCombatPosForPieces(const pos& startPos, const pos& prevPos, std::l
                         targetCellState != startCellState &&
                         startCellState != victimCellState) {
                         result = Board::MoveResult::SUCCESSFUL_COMBAT;
-                        enemys.push_back(victimPos);
-                        endPos = position;
-                        auto res = checkPiecesTransQueen(position);
-                        if (res)
-                            return getCombatPosForQueenPieces(endPos, startPos, enemys);
+                        enemys.push_back({ victimPos, _cells.at(victimPos) });
+                        if (checkPiecesBecomeQueen(startPos, position)) {
+                            _cells.at(position).setQueen(true);
+                            endPos = getCombatPosForQueenPieces(position, startPos, enemys);
+                            _cells.at(position).setQueen(false);
+                            if (endPos == position)
+                                break;
+                        } else {
+                            endPos = getCombatPosForPieces(position, startPos, enemys);
+                            if (endPos == position)
+                                break;
+                        }
                     }
                 }
             }
@@ -140,27 +218,28 @@ pos Board::getCombatPosForPieces(const pos& startPos, const pos& prevPos, std::l
     std::swap(_cells.at(startPos), _cells.at(prevPos));
     if (endPos == pos(0, 0))
         return startPos;
-    return getCombatPosForPieces(endPos, startPos, enemys);
+    return endPos;
 }
 
-pos Board::getCombatPosForQueenPieces(const pos& startPos, const pos& prevPos, std::list<pos>& enemys) {
-    auto startCellState = (_moveColor == true) ? Cell::State::WHITE : Cell::State::BLACK;
+pos Board::getCombatPosForQueenPieces(const pos& startPos, const pos& prevPos, 
+    std::list<std::pair<pos, Cell>>& enemys) {
+    auto startCellState = _cells.at(prevPos).getState();
     pos endPos = pos(0, 0);
-    pos victimPos = pos(0, 0);
     auto possible_pos = generatePossibleCombatPosQueen(startPos, prevPos);
-
+    if (possible_pos.empty())
+        return startPos;
+    // перемещаем пешку по ходу боя
     std::swap(_cells.at(startPos), _cells.at(prevPos));
-
     for (auto position : possible_pos) {
         auto check = checkQueenMove(startPos, position);
         if (check == Board::MoveResult::SUCCESSFUL_COMBAT) {
-
-             victimPos = getVictimQueen(startPos, position);
+             // поиск побитой пешки
+             auto victimPos = getVictimQueen(startPos, position);
              auto result = getCombatPosForQueenPieces(position, startPos, enemys);
-
-             auto it_enemy = std::find(enemys.begin(), enemys.end(), victimPos);
+             auto it_enemy = std::find_if(enemys.begin(), enemys.end(), 
+                 [&] (const std::pair<pos, Cell>& val) {return val.first == victimPos; });
              if (it_enemy == enemys.end()) {
-                 enemys.push_back(victimPos);
+                 enemys.push_back({ victimPos, _cells.at(victimPos) });
                  endPos = position;
              }
              if (result != position)
@@ -168,53 +247,38 @@ pos Board::getCombatPosForQueenPieces(const pos& startPos, const pos& prevPos, s
         }
         check = Board::MoveResult::PROHIBITED;
     }
-   
     std::swap(_cells.at(startPos), _cells.at(prevPos));
     if (endPos == pos(0, 0))
         return startPos;
     return endPos;
 }
 
-pos Board::getPossibleCombatPos(const pos& startPos, const pos& prevPos) {
+std::pair<pos, std::list<std::pair<pos, Cell>>> Board::getPossibleCombatPos(
+    const pos& startPos, const pos& prevPos) {
     pos endPos = pos(0, 0);
-    pos victimPos = pos(0, 0);
-    std::list<pos> enemys;
+    std::list<std::pair<pos, Cell>> enemys(0);
     if (!_cells.at(startPos).isQueen()) {
-        // ��������� ������� �����
-        enemys.push_back(pos((prevPos.first + startPos.first) / 2,
-            (prevPos.second + startPos.second) / 2));
+        // добавляем побитую шашку
+        auto victimPos = pos((prevPos.first + startPos.first) / 2,
+            (prevPos.second + startPos.second) / 2);
+        enemys.push_back({ victimPos, _cells.at(victimPos) });
         auto combatPos = getCombatPosForPieces(startPos, prevPos, enemys);
-        const auto move = std::make_pair(prevPos, combatPos);
-        // ���� � ���������� ������� ��������� BLANK, �� ������
-        // � �������� ���� ���������� ������ �� �������� �����
-        if (_cells.at(prevPos).getState() == Cell::State::BLANK) {
-            std::swap(_cells.at(startPos), _cells.at(prevPos));
-            _movesTransInQueen.insert({ std::move(move), true });
+        const auto move = posMove(prevPos, combatPos);
+        // если попали в дамочное поле то устанавливаем состояни едамки обратно
+        if (_cells.at(combatPos).isQueen()) {
+            // добавляем в мапу перехода в дамку
+            _movesBecomeQueen.insert({ std::move(move), true });
+            _cells.at(combatPos).setQueen(false); // возвращаем исходное состояние позиции
         }
-        // ��������� � ���� ����� ��� ���
-        _combatPieces.insert({ std::move(move), std::move(enemys) });
-        return combatPos;
-    } else { // ��� ��� �����
-        auto victimPos = getVictimQueen(prevPos, startPos);
-        enemys.push_back(victimPos);
-        auto combatPos = getCombatPosForQueenPieces(startPos, prevPos, enemys);
-        const auto move = std::make_pair(prevPos, combatPos);
-        _combatPieces.insert({ std::move(move), std::move(enemys) });
-        return combatPos;
-    }
-}
+        return { combatPos, enemys };
 
-bool Board::checkPiecesTransQueen(const pos& pos) {
-    if (_cells.at(pos).isQueen())
-        return false;
-    if (_moveColor) {
-        if (pos.second == 0)
-            return true;
-    } else {
-        if (pos.second == 7)
-            return true;
+    } else { // бой для дамки
+        auto victimPos = getVictimQueen(prevPos, startPos);
+        enemys.push_back({ victimPos, _cells.at(victimPos) });
+        auto combatPos = getCombatPosForQueenPieces(startPos, prevPos, enemys);
+        const auto move = posMove(prevPos, combatPos);
+        return { combatPos, enemys };
     }
-    return false;
 }
 
 std::list<pos> Board::generatePossiblePosQueen(const pos& startPos) {
@@ -246,7 +310,7 @@ std::list<pos> Board::generatePossiblePosQueen(const pos& startPos) {
 std::list<pos> Board::generatePossibleCombatPosQueen(const pos& startPos, const pos& prevPos) {
     const int dX = startPos.first - prevPos.first;
     const int dY = startPos.second - prevPos.second;
-    std::list<pos> possible_pos;
+    std::list<pos> possible_pos(0);
     int right = startPos.first;
     int left = startPos.first;
     int up = startPos.second;
@@ -271,47 +335,53 @@ std::list<pos> Board::generatePossibleCombatPosQueen(const pos& startPos, const 
     return possible_pos;
 }
 
-std::list<std::pair<pos, Board::MoveResult>> Board::generateAllMoves(
-    const pos& startPos, bool direction) {
-    std::list<std::pair<pos, Board::MoveResult>> moves;
+std::list<pos> Board::generateListPieces(bool color) const {
+    auto findState = color ? Cell::State::WHITE : Cell::State::BLACK;
+    std::list<pos> pieces(0);
+    for (auto i : _cells) {
+        if (i.second.getState() == findState)
+            pieces.push_back(i.first);
+    }
+    return pieces;
+}
+
+std::list<Board::moveWithResult> Board::generateAllMoves(const pos& startPos, bool color) {
+    std::list<moveWithResult> moves(0);
     Board::MoveResult result = Board::MoveResult::PROHIBITED;
-    if (!_cells.at(startPos).isQueen()) {
+    if (!_cells.at(startPos).isQueen()) { // обычная пешка
         auto possible_pos = {
-            pos(startPos.first + 1, startPos.second + 1), // direction - false, move black
-            pos(startPos.first - 1, startPos.second + 1), // direction - false
-            pos(startPos.first + 1, startPos.second - 1), // direction - true, move white
-            pos(startPos.first - 1, startPos.second - 1), // direction - true
-            pos(startPos.first + 2, startPos.second + 2), // direction - never mind
-            pos(startPos.first - 2, startPos.second + 2),
+            pos(startPos.first + 1, startPos.second + 1), // color - false, move black
+            pos(startPos.first - 1, startPos.second + 1), // color - false
+            pos(startPos.first + 1, startPos.second - 1), // color - true, move white
+            pos(startPos.first - 1, startPos.second - 1), // color - true
+            pos(startPos.first + 2, startPos.second + 2), // color - never mind
             pos(startPos.first + 2, startPos.second - 2),
+            pos(startPos.first - 2, startPos.second + 2),
             pos(startPos.first - 2, startPos.second - 2) };
         for (auto position : possible_pos) {
-            result = checkMove(startPos, position, direction);
+            result = checkMove(startPos, position, color);
             if (result == Board::MoveResult::SUCCESSFUL_MOVE) {
                 moves.push_back({ position, result });
             } else if (result == Board::MoveResult::SUCCESSFUL_COMBAT) {
-                // ������ �� �� �������� ���� � ������� ���, 
-                // ���� �� �� ���� ��������� ���� ��� ��� �����
-                auto res = checkPiecesTransQueen(position);
-                auto combatPos = pos(0, 0);
-                if (res) {
+                // попали ли на дамочное поле с первого боя, 
+                // если да то ищем следующие ходы уже как дамка
+                if (checkPiecesBecomeQueen(startPos, position)) {
                     _cells.at(position).setQueen(true);
-                    const auto move = std::make_pair(startPos, position);
-                    _movesTransInQueen.insert({ std::move(move), true });
-                    combatPos = getPossibleCombatPos(position, startPos);
-                    _cells.at(position).setQueen(false); // ���������� �������� ��������� �������
+                    auto combatPos = getPossibleCombatPos(position, startPos);
+                    const auto move = posMove(startPos, combatPos.first);
+                    // добавляем в соответствующую мапу ход при котором пешка становится дамкой
+                    _movesBecomeQueen.insert({ std::move(move), true });
+                    _cells.at(position).setQueen(false); // возвращаем исходное состояние позиции
+                    moves.push_back({ combatPos.first, result });
                 } else {
-                    combatPos = getPossibleCombatPos(position, startPos);
+                    auto combatPos = getPossibleCombatPos(position, startPos);
+                    moves.push_back({ combatPos.first, result });
                 }
-                if (combatPos != position)
-                    moves.push_back({ combatPos, result });
-                else
-                    moves.push_back({ position, result });
             }
             result = Board::MoveResult::PROHIBITED;
         }
         return moves;
-    } else { // queen pos
+    } else { // если дамка
         auto possible_pos = generatePossiblePosQueen(startPos);
         for (auto position : possible_pos) {
             result = checkQueenMove(startPos, position);
@@ -321,10 +391,7 @@ std::list<std::pair<pos, Board::MoveResult>> Board::generateAllMoves(
                 _cells.at(position).setQueen(true);
                 auto combatPos = getPossibleCombatPos(position, startPos);
                 _cells.at(position).setQueen(false);
-                if (combatPos != position)
-                    moves.push_back({ combatPos, result });
-                else
-                    moves.push_back({ position, result });
+                moves.push_back({ combatPos.first, result });
             }
             result = Board::MoveResult::PROHIBITED;
         }
@@ -332,188 +399,209 @@ std::list<std::pair<pos, Board::MoveResult>> Board::generateAllMoves(
     }
 }
 
-pos Board::getVictimQueen(const pos& startPos, const pos& endPos) {
-    const int dX = startPos.first - endPos.first;
-    const int dY = startPos.second - endPos.second;
-    auto victimCellState =  (_cells.at(startPos).getState() == Cell::State::WHITE) 
-        ? Cell::State::BLACK : Cell::State::WHITE;
-    auto start = startPos;
-    while (start != endPos) {
-        if (dX < 0 && dY < 0) {
-            ++start.first;
-            ++start.second;
-        } else if (dX < 0 && dY > 0) {
-            ++start.first;
-            --start.second;
-        } else if (dX > 0 && dY < 0) {
-            --start.first;
-            ++start.second;
-        } else if (dX > 0 && dY > 0) {
-            --start.first;
-            --start.second;
-        }
-        auto curCell = start;
-        auto currCellState = _cells.at(curCell).getState();
-        if (currCellState == victimCellState)
-            return curCell;
-    }
-}
-
-void Board::makeMove(const pos& startPos, const std::pair<pos, Board::MoveResult>& endPos) {
-    auto moveResult = endPos.second;
-    const auto move = std::make_pair(startPos, endPos.first);
-    switch (moveResult) {
-    case Board::MoveResult::SUCCESSFUL_MOVE: {
-        _cells.at(endPos.first).setState(_cells.at(startPos).getState());
-        _cells.at(startPos).setState(Cell::State::BLANK);
-        if (_cells.at(startPos).isQueen())
-            _cells.at(endPos.first).setQueen(true);
-        break;
-    }
-    case Board::MoveResult::SUCCESSFUL_COMBAT: {
-        if (_cells.at(startPos).isQueen())
-            _cells.at(endPos.first).setQueen(true);
-        _cells.at(endPos.first).setState(_cells.at(startPos).getState());
-        _cells.at(startPos).setState(Cell::State::BLANK);
-        auto list_victim = _combatPieces.at(move);
-        for (auto victim : list_victim)
-            _cells.at(victim).setState(Cell::State::BLANK);
-        break;
-    }
-    }
-    auto itQueen = _movesTransInQueen.find(move);
-    if (itQueen != _movesTransInQueen.end())
-        _cells.at(endPos.first).setQueen(true);
-}
-
-void Board::revokeMove(const pos& startPos, const std::pair<pos, Board::MoveResult>& endPos) {
-    auto moveResult = endPos.second;
-    auto victimState = _cells.at(endPos.first).getState() == Cell::State::WHITE ?
+std::list<std::pair<pos, Cell>> Board::getListCombatPieces(
+    const pos& startPos, const pos& endPos) {
+    auto victimState = _cells.at(startPos).getState() == Cell::State::WHITE ?
         Cell::State::BLACK : Cell::State::WHITE;
-    const auto move = std::make_pair(startPos, endPos.first);
+    Board::MoveResult result = Board::MoveResult::PROHIBITED;
+    if (!_cells.at(startPos).isQueen()) { // обычная пешка
+        auto possible_pos = {
+            pos(startPos.first + 2, startPos.second + 2),
+            pos(startPos.first + 2, startPos.second - 2),
+            pos(startPos.first - 2, startPos.second + 2),
+            pos(startPos.first - 2, startPos.second - 2) };
+        for (auto position : possible_pos) {
+            result = checkMove(startPos, position, true);
+            if (result == Board::MoveResult::SUCCESSFUL_COMBAT) {
+                // попали ли на дамочное поле с первого боя, 
+                // если да то ищем следующие ходы уже как дамка
+                if (checkPiecesBecomeQueen(startPos, position)) {
+                    _cells.at(position).setQueen(true);
+                    auto combatPos = getPossibleCombatPos(position, startPos);
+                    _cells.at(position).setQueen(false); // возвращаем исходное состояние позиции
+                    if (combatPos.first == endPos)
+                        return combatPos.second;
+                } else {
+                    auto combatPos = getPossibleCombatPos(position, startPos);
+                    if (combatPos.first == endPos)
+                        return combatPos.second;
+                }
+            }
+            result = Board::MoveResult::PROHIBITED;
+        }
+    } else { // если дамка
+        auto possible_pos = generatePossiblePosQueen(startPos);
+        for (auto position : possible_pos) {
+            result = checkQueenMove(startPos, position);
+            if (result == Board::MoveResult::SUCCESSFUL_COMBAT) {
+                _cells.at(position).setQueen(true);
+                auto combatPos = getPossibleCombatPos(position, startPos);
+                _cells.at(position).setQueen(false);
+                if (combatPos.first == endPos)
+                    return combatPos.second;
+            }
+            result = Board::MoveResult::PROHIBITED;
+        }
+    }
+}
+
+void Board::setStateQueen(const pos& startPos, const pos& endPos) {
+    auto itQueen = _movesBecomeQueen.find(posMove(startPos, endPos));
+    if (itQueen != _movesBecomeQueen.end())
+        _cells.at(endPos).setQueen(true);
+}
+
+void Board::unsetStateQueen(const pos& startPos, const pos& endPos) {
+    // Если пешка стала дамкой в процессе хода то убираем состояние дамки
+    auto itQueen = _movesBecomeQueen.find(posMove(startPos, endPos));
+    if (itQueen != _movesBecomeQueen.end())
+        _cells.at(endPos).setQueen(false);
+}
+
+void Board::makeMove(const pos& startPos, const moveWithResult& endPos) {
+    auto moveResult = endPos.second;
+    auto blankCell = Cell(Cell::State::BLANK, false);
     switch (moveResult) {
     case Board::MoveResult::SUCCESSFUL_MOVE: {
-        _cells.at(startPos).setState(_cells.at(endPos.first).getState());
-        _cells.at(endPos.first).setState(Cell::State::BLANK);
-        if (_cells.at(endPos.first).isQueen()) {
-            _cells.at(endPos.first).setQueen(false);
-            _cells.at(startPos).setQueen(true);
-        }
+        _cells.at(endPos.first) = _cells.at(startPos);
+        _cells.at(startPos) = blankCell;
+        setStateQueen(startPos, endPos.first);
         break;
     }
     case Board::MoveResult::SUCCESSFUL_COMBAT: {
-        _cells.at(startPos).setState(_cells.at(endPos.first).getState());
-        _cells.at(endPos.first).setState(Cell::State::BLANK);
-        auto list_victim = _combatPieces.at(move);
-        for (auto victim : list_victim)
-            _cells.at(victim).setState(victimState);
+        auto listVictim = getListCombatPieces(startPos, endPos.first);
+        _historyCombat.push(listVictim);
+        for (auto victim : listVictim)
+            _cells[victim.first] = blankCell;
+        _cells.at(endPos.first) = _cells.at(startPos);
+        _cells.at(startPos) = blankCell;
+        setStateQueen(startPos, endPos.first);
+        break;
+    }
+    }
+    _historyMove.push({ startPos, endPos });
+}
 
-        if (_cells.at(endPos.first).isQueen()) {
-            _cells.at(endPos.first).setQueen(false);
-            _cells.at(startPos).setQueen(true);
-        }
+void Board::revokeMove() {
+    auto endPos = _historyMove.top().second;
+    auto startPos = _historyMove.top().first;
+    _historyMove.pop();
+    auto moveResult = endPos.second;
+    auto blankCell = Cell(Cell::State::BLANK, false);
+    switch (moveResult) {
+    case Board::MoveResult::SUCCESSFUL_MOVE: {
+        unsetStateQueen(startPos, endPos.first);
+        _cells.at(startPos) = _cells.at(endPos.first);
+        _cells.at(endPos.first) = blankCell;
+        break;
+    }
+    case Board::MoveResult::SUCCESSFUL_COMBAT: { 
+        unsetStateQueen(startPos, endPos.first);
+        _cells.at(startPos) = _cells.at(endPos.first);
+        _cells.at(endPos.first) = blankCell;
+        auto listVictim = _historyCombat.top();
+        _historyCombat.pop();
+        for (auto victim : listVictim)
+            _cells[victim.first] = victim.second;
         break;
     }
     }
 }
 
-void Board::updateListPieces(
-    const pos& startPos, const std::pair<pos, Board::MoveResult>& endPos) {
-    auto moveResult = endPos.second;
-    switch (moveResult) {
-    case Board::MoveResult::SUCCESSFUL_MOVE: {
-        if (_cells.at(startPos).getState() == Cell::State::WHITE) {
-            auto it = std::find(_whitePieces.begin(), _whitePieces.end(), startPos);
-            _whitePieces.erase(it);
-            _whitePieces.push_front(endPos.first);
-        }
-        else {
-            auto it = std::find(_blackPieces.begin(), _blackPieces.end(), startPos);
-            _blackPieces.erase(it);
-            _blackPieces.push_front(endPos.first);
-        }
-        break;
+void Board::findAndSetBestPos(const std::list<std::pair<int, moveWithResult>>& end_moves) {
+    auto max = end_moves.begin();
+
+    auto countProhibited = std::count_if(end_moves.begin(), end_moves.end(),
+        [](const std::pair<int, moveWithResult>& val)
+    {return val.second.second == Board::MoveResult::PROHIBITED; });
+    if (countProhibited == end_moves.size()) {
+        _isGameOver = true;
+        return;
     }
-    case Board::MoveResult::SUCCESSFUL_COMBAT: {
-        if (_cells.at(startPos).getState() == Cell::State::WHITE) {
-            auto it = std::find(_whitePieces.begin(), _whitePieces.end(), startPos);
-            _whitePieces.erase(it);
-            _whitePieces.push_front(endPos.first);
-            auto list_victim = _combatPieces.at(std::make_pair(startPos, endPos.first));
-            for (auto victim : list_victim) {
-                auto it_victim = std::find(_blackPieces.begin(), _blackPieces.end(), victim);
-                _blackPieces.erase(it_victim);
-            }          
-        }
-        else {
-            auto it = std::find(_blackPieces.begin(), _blackPieces.end(), startPos);
-            _blackPieces.erase(it);
-            _blackPieces.push_front(endPos.first);
-            auto list_victim = _combatPieces.at(std::make_pair(startPos, endPos.first));
-            for (auto victim : list_victim) {
-                auto it_victim = std::find(_whitePieces.begin(), _whitePieces.end(), victim);
-                _whitePieces.erase(it_victim);
+
+    // есть ли варианты боя, то ищем лучшую оценку среди них
+    auto countCombat = std::count_if(end_moves.begin(), end_moves.end(),
+        [](const std::pair<int, moveWithResult>& val)
+    {return val.second.second == Board::MoveResult::SUCCESSFUL_COMBAT; });
+
+    if (countCombat != 0) {
+        // возьмём минимальный score, относительно которого будем искать максимальную оценку для боя
+        auto score = std::numeric_limits<int>::min();
+        for (auto it = end_moves.begin(); it != end_moves.end(); ++it) {
+            if ((score < it->first) && (it->second.second == Board::MoveResult::SUCCESSFUL_COMBAT)) {
+                max = it;
+                score = it->first;
             }
         }
-        break;
+    } else {
+        max = std::max_element(end_moves.begin(), end_moves.end());
     }
+    _endPosition = max->second;
+    auto distance = std::distance(end_moves.begin(), max);
+    // находин начальную позицию лучшего хода в листе пешек
+    auto pieces = generateListPieces(_moveColor);
+    auto it = pieces.begin();
+    std::advance(it, distance);
+    _startPosition = *it;
+}
+
+Board::moveWithResult Board::getMove(const std::list<Board::moveWithResult>& list) {
+    auto it = std::find_if(list.begin(), list.end(),
+        [](const moveWithResult& val)
+    {return val.second == Board::MoveResult::SUCCESSFUL_COMBAT; });
+
+    if (it == list.end()) {
+        if (_moveColor)
+            return list.front();
+        else
+            return list.back();
+    } else {
+        return *it;
     }
 }
 
-void Board::findAndSetBestPos(
-    const std::list<std::pair<int, std::pair<pos, Board::MoveResult>>>& end_moves) {
-    std::list<pos> pieces = _moveColor == true ? _whitePieces : _blackPieces;
-
-    auto max = std::max_element(end_moves.begin(), end_moves.end());
-    // check if there are options when you need to combat
-    // ����� ������� ��� ����� ����� ��� � ������ ������ 
-    auto max_combat_move = std::find_if(end_moves.begin(), end_moves.end(),
-        [](const std::pair<int, std::pair<pos, Board::MoveResult>>& val)
-    {return val.second.second == Board::MoveResult::SUCCESSFUL_COMBAT; });
-    // if combat - best_move is combat
-    std::pair<pos, Board::MoveResult> best_pos;
-    if (max_combat_move != end_moves.end() &&
-        max_combat_move->second.second == Board::MoveResult::SUCCESSFUL_COMBAT) {
-        _endPosition = max_combat_move->second;
-        auto distance = std::distance(end_moves.begin(), max_combat_move);
-        auto it = pieces.begin();
-        std::advance(it, distance);
-        _startPosition = *it;
+void Board::setMoveColor(const char color) {
+    try {
+        if (color != WHITE && color != BLACK)
+            throw Exception("Invalid input!");
+    } catch (Exception& except) {
+        except.fail(_log, _outPath);
     }
-    else {
-        _endPosition = max->second;
-        auto distance = std::distance(end_moves.begin(), max);
-        auto it = pieces.begin();
-        std::advance(it, distance);
-        _startPosition = *it;
-    }
+    _moveColor = color == WHITE ? true : false;
 }
 
-void Board::minimaxRoot(const char player, size_t depth) {
-    if (player != WHITE && player != BLACK)
-        throw std::logic_error("Invalid input");
+// ------------------------- AI ------------------------------ // 
+void Board::calculateBestMove(const char color, size_t depth) {
+    if (_cells.empty())
+        return;
 
-    std::list<pos> pieces = player == WHITE ? _whitePieces : _blackPieces;
-    _moveColor = player == WHITE ? true : false;
-    bool isMaximisingPlayer = _moveColor;
+    setMoveColor(color);
+    auto endMoves = minimaxRoot(depth);
+    findAndSetBestPos(endMoves);
+}
 
-    std::list<std::pair<int, std::pair<pos, Board::MoveResult>>> endMoves;
+std::list<std::pair<int, Board::moveWithResult>> Board::minimaxRoot(size_t depth) {
+    // список лучших ходов для каждой шашки
+    std::list<std::pair<int, moveWithResult>> endMoves(0);
+    bool isMaximisingPlayer = true;
+    auto pieces = generateListPieces(_moveColor);
     int bestScore = std::numeric_limits<int>::min();
     for (auto piece : pieces) {
-        auto moves = generateAllMoves(piece, isMaximisingPlayer);
-        if (moves.empty()) {
-            //���� ������ ������ ������ �� ���� ���������, ���������� �������� �����
-        }
-        int score = std::numeric_limits<int>::min();
+        auto moves = generateAllMoves(piece, _moveColor);
         auto bestMove = std::pair(pos(0, 0), Board::MoveResult::PROHIBITED);
-        // ���� ���� combat_move �� ����� ������� ������ ������ �� ��� � ��������� ��
+        int score = std::numeric_limits<int>::min();
+        if (moves.empty()) {
+            endMoves.push_back({ score, bestMove });
+            continue;
+        }
         for (auto move : moves) {
             makeMove(piece, move);
-            auto value = minimax(move.first, depth - 1,
+            auto value = minimax(
+                depth - 1,
                 std::numeric_limits<int>::min(), 
                 std::numeric_limits<int>::max(), 
                 !isMaximisingPlayer);
-            revokeMove(piece, move);
+            revokeMove();
             if (value >= score) {
                 score = value;
                 bestMove = move;
@@ -521,40 +609,45 @@ void Board::minimaxRoot(const char player, size_t depth) {
         }
         endMoves.push_back({ score, bestMove });
     }
-    findAndSetBestPos(endMoves);
+    return endMoves;
 }
 
-int Board::minimax(const pos& startPos, size_t depth,
-    int alpha, int beta, bool isMaximisingPlayer) {
+int Board::minimax(size_t depth, int alpha, int beta, bool isMaximisingPlayer) {
     if (depth == 0)
         return evaluate();
 
-    auto moves = generateAllMoves(startPos, _moveColor);
+    auto pieces = generateListPieces(isMaximisingPlayer);
 
     if (isMaximisingPlayer) {
         int bestScore = std::numeric_limits<int>::min();
-        for (auto move : moves) {
-            makeMove(startPos, move);
-            bestScore = std::max(bestScore, minimax(
-                 move.first, depth - 1, alpha, beta, !isMaximisingPlayer));
-            revokeMove(startPos, move);
+        for (auto piece : pieces) {
+            auto moves = generateAllMoves(piece, isMaximisingPlayer);
+            if (moves.empty())
+                continue;
+            auto move = getMove(moves);
+            makeMove(piece, move);
+            bestScore = std::max(bestScore,
+                minimax(depth - 1, alpha, beta, !isMaximisingPlayer));
+            revokeMove();
             alpha = std::max(alpha, bestScore);
-            if (beta <= alpha) {
+            if (beta <= alpha)
                 return bestScore;
-            }
         }
         return bestScore;
     } else {
         int bestScore = std::numeric_limits<int>::max();
-        for (auto move : moves) {
-            makeMove(startPos, move);
-            bestScore = std::min(bestScore, minimax(
-                move.first, depth - 1, alpha, beta, isMaximisingPlayer));
-            revokeMove(startPos, move);
+        for (auto piece : pieces) {
+            auto moves = generateAllMoves(piece, isMaximisingPlayer);
+            if (moves.empty())
+                continue;
+            auto move = getMove(moves);
+            makeMove(piece, move);
+            bestScore = std::min(bestScore,
+                minimax(depth - 1, alpha, beta, !isMaximisingPlayer));
+            revokeMove();
             beta = std::min(beta, bestScore);
-            if (beta <= alpha) {
+            if (beta <= alpha)
                 return bestScore;
-            }
         }
         return bestScore;
     }
@@ -564,85 +657,130 @@ int Board::evaluate() const {
     int whiteScore = 0;
     int blackScore = 0;
     for (auto i : _cells) {
-        if (i.second.getState() == Cell::State::WHITE)
-            whiteScore += _heuristic[i.first.first][i.first.second];
-        else if (i.second.getState() == Cell::State::BLACK)
-            blackScore += _heuristic[i.first.first][i.first.second];
+        if (i.second.getState() == Cell::State::WHITE) {
+            if (_cells.at(i.first).isQueen())
+                whiteScore += _heuristic[i.first.first][i.first.second] * 2;
+            else
+                whiteScore += _heuristic[i.first.first][i.first.second];
+        } else if (i.second.getState() == Cell::State::BLACK) {
+            if (_cells.at(i.first).isQueen())
+                blackScore += _heuristic[i.first.first][i.first.second] * 2;
+            else
+                blackScore += _heuristic[i.first.first][i.first.second];
+        }
     }
-    int score = _moveColor == true ? (whiteScore - blackScore) : (blackScore - whiteScore);
+    int score = _moveColor ? (whiteScore - blackScore) : (blackScore - whiteScore);
     return score;
 }
+//----------------------------------------------------------//
 
-void Board::make_best_move() {
-    updateListPieces(_startPosition, _endPosition);
-    makeMove(_startPosition, _endPosition);
-    if (_cells.at(_startPosition).isQueen())
-        _cells.at(_startPosition).setQueen(false);
+std::pair<pos, Board::MoveResult> Board::getBestMove() const {
+    try {
+        if (_endPosition == std::make_pair(pos(0, 0), Board::MoveResult::PROHIBITED))
+            throw Exception("Position not calculated!");
+    } catch (Exception& except) {
+        except.fail(_log, _outPath);
+    }
+    return _endPosition;
 }
 
-void Board::checkLineBoard(const std::string& line, size_t col) {
-    if (line.size() > 17 || line[0] - '0' != col + 1 || line[1] != ' ') // size line symbol
-        throw std::logic_error("Invalid input");
-
-    const char space = ' ';
-    const char whiteDiagonal = '_'; // ���� ������ ������ �� ������
-    if (col % 2 == 0) { // start from '_'
-        for (size_t i = 2; i < line.size(); i += 4) {
-            if (i == 14) {
-                if (line[i] != whiteDiagonal || line[i + 1] != space ||
-                    (line[i + 2] != BLACK && line[i + 2] != WHITE && line[i + 2] != BLANK &&
-                        line[i + 2] != BLACK_QUEEN && line[i + 2] != WHITE_QUEEN))
-                    throw std::logic_error("Invalid input");
-                break;
-            }
-            if (line[i] != whiteDiagonal || line[i + 1] != space || (line[i + 2] != BLACK
-                && line[i + 2] != WHITE && line[i + 2] != BLANK && line[i + 2] != BLACK_QUEEN && 
-                line[i + 2] != WHITE_QUEEN) || line[i + 3] != space)
-                throw std::logic_error("Invalid input");
-        }
+posMove Board::getMadeMove() const {
+    try {
+        if (_endPosition == std::make_pair(pos(0, 0), Board::MoveResult::PROHIBITED))
+            throw Exception("Position not calculated!");
     }
-    else { // start from 'b' or 'w'
-        for (size_t i = 2; i < line.size(); i += 4) {
-            if (i == 14) {
-                if ((line[i] != BLACK && line[i] != WHITE && line[i] != BLANK &&
-                     line[i] != WHITE_QUEEN && line[i] != BLACK_QUEEN) ||
-                    line[i + 1] != space || line[i + 2] != whiteDiagonal)
-                    throw std::logic_error("Invalid input");
-                break;
-            } 
-            if ((line[i] != BLACK && line[i] != WHITE && line[i] != BLANK&&
-                     line[i] != WHITE_QUEEN && line[i] != BLACK_QUEEN)
-                || line[i + 1] != space || line[i + 2] != whiteDiagonal || line[i + 3] != space)
-                throw std::logic_error("Invalid input");
-        }
+    catch (Exception& except) {
+        except.fail(_log, _outPath);
+    }
+    return { _startPosition, _endPosition.first };
+}
+
+void Board::makeBestMove() {
+    if (_cells.empty())
+        return;
+    // если _isGameOver = true значит нет возможных ходом игра закончена
+    if (_isGameOver) {
+        _log << INFO << ((_moveColor) ?
+            "Black won, no possible moves. Game over!" :
+            "White won, no possible moves. Game over!") << std::endl;
+        return;
+    }
+    try {
+        if ((_endPosition == std::make_pair(pos(0, 0), Board::MoveResult::PROHIBITED) ||
+            _startPosition == pos(0, 0)))
+            throw Exception("Position not calculated!");
+    } catch (Exception& except) {
+        except.fail(_log, _outPath);
+    }
+    makeMove(_startPosition, _endPosition);
+    if (empty(WHITE) || empty(BLACK))
+        _isGameOver = true;
+    // Запись хода в лог
+    auto colorInfo = (_moveColor) ? "White`s move:" : "Black`s move:";
+    _log << INFO << (colorInfo + pu::posToString(_startPosition) + "->" 
+        + pu::posToString(_endPosition.first)) << std::endl;
+    if (_moveColor && empty(BLACK))
+        _log << INFO << "White won. Game over!" << std::endl;
+    else if (!_moveColor && empty(WHITE))
+        _log << INFO << "Black won. Game over!" << std::endl;
+}
+
+bool Board::makeMove(const pos& startPos, const pos& endPos, const char color) {
+    // Для того чтобы проверить код, найдём список всех возможных ходов из начальной
+    // позиции, если список пуст, возвращаем false, если среди найенных нет endPos, 
+    // возвращаем false, находим - true. Генерация всех ходов необходима для того, 
+    // чтобы заполнить мапы побитых фигур и для проверки возможности хода
+    setMoveColor(color);
+    bool direction = (color == BLACK) ? false : true;
+    auto moves = generateAllMoves(startPos, direction);
+
+    if (moves.empty())
+        return false;
+
+    auto it = std::find_if(moves.begin(), moves.end(),
+        [&](const moveWithResult& val)
+    {return val.first == endPos; });
+
+    if (it != moves.end()) {
+        makeMove(startPos, { endPos, it->second });
+        if (empty(WHITE) || empty(BLACK))
+            _isGameOver = true;
+        // Запись хода в лог
+        auto colorInfo = (_moveColor) ? "White`s move:" : "Black`s move:";
+        _log << INFO << (colorInfo + pu::posToString(startPos) + "->" 
+            + pu::posToString(endPos)) << std::endl;
+        if (_moveColor && empty(BLACK))
+            _log << INFO << "White won. Game over!" << std::endl;
+        else if (!_isGameOver && empty(WHITE))
+            _log << INFO << "Black won. Game over!" << std::endl;
+        return true;
+    } else {
+        return false;
     }
 }
 
 void Board::parsing(const std::string& filename) {
     std::ifstream ifs(filename);
     std::string line;
+    size_t countW = 0;
+    size_t countB = 0;
     size_t col = -1;
     size_t row = 0;
     const char space = ' ';
-    const char whiteDiagonal = '_'; // ���� ������ ������ �� ������
+    const char whiteDiagonal = '_'; // Игра ведётся только на чёрных
     bool isQueen = false;
     while (std::getline(ifs, line)) {
         if (col == -1) { // check first str A B C D E F G H
-            if (line[0] != space && line[1] != space)
-                throw std::logic_error("Invalid input");
-
-            int codeSymbol = 65; // code - 'A'
-            for (size_t i = 2; i < line.size(); i += 2) {
-                if (line[i] != codeSymbol || line[i + 1] != space)
-                    if (line[i + 1] != space && i != 16) // else out of range
-                        throw std::logic_error("Invalid input");
-                ++codeSymbol;
-            }
+            if (!pu::checkFirstLine(line, _log, _outPath))
+                return;
             ++col;
             continue;
         }
         if (col < _boardSize)
-            checkLineBoard(line, col);
+            if (!pu::checkLineBoard(line, col, _log, _outPath)) {
+                _cells.clear();
+                return;
+            }
         if (col % 2 == 0)
             row = 1;
         else
@@ -665,7 +803,7 @@ void Board::parsing(const std::string& filename) {
                 isQueen = false;
                 auto cell = Cell(state, isQueen);
                 _cells.insert({ std::move(positions), std::move(cell) });
-                _whitePieces.push_front(positions);
+                ++countW;
                 break;
             }
             case BLACK: {
@@ -674,7 +812,7 @@ void Board::parsing(const std::string& filename) {
                 isQueen = false;
                 auto cell = Cell(state, isQueen);
                 _cells.insert({ std::move(positions), std::move(cell) });
-                _blackPieces.push_front(positions);
+                ++countB;
                 break;
             }
             case WHITE_QUEEN: {
@@ -683,7 +821,7 @@ void Board::parsing(const std::string& filename) {
                 isQueen = true;
                 auto cell = Cell(state, isQueen);
                 _cells.insert({ std::move(positions), std::move(cell) });
-                _whitePieces.push_front(positions);
+                ++countW;
                 break;
             }
             case BLACK_QUEEN: {
@@ -692,7 +830,7 @@ void Board::parsing(const std::string& filename) {
                 isQueen = true;
                 auto cell = Cell(state, isQueen);
                 _cells.insert({ std::move(positions), std::move(cell) });
-                _blackPieces.push_front(positions);
+                ++countB;
                 break;
             }
             default: continue;
@@ -703,59 +841,57 @@ void Board::parsing(const std::string& filename) {
         if (col == 8)
             break;
     }
-    if (_whitePieces.size() > 12 || _whitePieces.size() == 0)
-        throw std::logic_error("Invalid input, exceeded the number of white pieces");
-    else if (_blackPieces.size() > 12 || _blackPieces.size() == 0)
-        throw std::logic_error("Invalid input, exceeded the number of black pieces");
+    try {
+        if (countW > 12 || countW == 0)
+            throw Exception("Invalid input, exceeded the number of white pieces!");
+        if (countB > 12 || countB == 0)
+            throw Exception("Invalid input, exceeded the number of black pieces!");
+    } catch (Exception& except) {
+        except.fail(_log, _outPath);
+        _cells.clear();
+        return;
+    }
 }
 
-std::string Board::posToString(const pos& pos) {
-    std::string str_pos;
-    switch (pos.first) {
-    case 0: {
-        str_pos += 'A';
-        break;
+void Board::setInitialPlacement() {
+    size_t col = 0;
+    size_t row = 0;
+    auto isQueen = false;
+    while (col != _boardSize) {
+        if (col % 2 == 0)
+            row = 1;
+        else
+            row = 0;
+        for (size_t i = 0; i < 4; ++i) {
+            if (col < 3) {
+                const pos positions = pos(row, col);
+                auto state = Cell::State::BLACK;
+                auto cell = Cell(state, isQueen);
+                _cells.insert({ std::move(positions), std::move(cell) });
+            } else if (col > 4) {
+                const pos positions = pos(row, col);
+                auto state = Cell::State::WHITE;
+                isQueen = false;
+                auto cell = Cell(state, isQueen);
+                _cells.insert({ std::move(positions), std::move(cell) });
+            } else {
+                const pos positions = pos(row, col);
+                auto state = Cell::State::BLANK;
+                isQueen = false;
+                auto cell = Cell(state, isQueen);
+                _cells.insert({ std::move(positions), std::move(cell) });
+            }
+            row += 2;
+        }
+        ++col;
     }
-    case 1: {
-        str_pos += 'B';
-        break;
-    }
-    case 2: {
-        str_pos += 'C';
-        break;
-    }
-    case 3: {
-        str_pos += 'D';
-        break;
-    }
-    case 4: {
-        str_pos += 'E';
-        break;
-    }
-    case 5: {
-        str_pos += 'F';
-        break;
-    }
-    case 6: {
-        str_pos += 'G';
-        break;
-    }
-    case 7: {
-        str_pos += 'H';
-        break;
-    }
-    }
-    str_pos += std::to_string(pos.second + 1);
-    return str_pos;
 }
 
-void Board::saveToFile(const std::string& filename) {
-    std::ofstream out(filename);
-    std::string outStr;
+void Board::print(std::ostream& out) const {
     size_t row = 0;
     size_t col = 0;
     bool flagSpace = true;
-    outStr += "  A B C D E F G H\n";
+    out << "  A B C D E F G H\n";
     for (size_t i = 0; i < _cells.size(); i += 4) {
         if (col % 2 == 0) {
             row = 1;
@@ -766,12 +902,13 @@ void Board::saveToFile(const std::string& filename) {
             flagSpace = false;
         }
         if (flagSpace) {
-            outStr += std::to_string(col + 1) + " _ " + _cells.at(pos(row, col)).getSymbolPieces()
+            out << std::to_string(col + 1) + " _ " + _cells.at(pos(row, col)).getSymbolPieces()
                 + " _ " + _cells.at(pos(row + 2, col)).getSymbolPieces()
                 + " _ " + _cells.at(pos(row + 4, col)).getSymbolPieces()
                 + " _ " + _cells.at(pos(row + 6, col)).getSymbolPieces() + '\n';
-        } else {
-            outStr += std::to_string(col + 1) + ' ' + _cells.at(pos(row, col)).getSymbolPieces()
+        }
+        else {
+            out << std::to_string(col + 1) + ' ' + _cells.at(pos(row, col)).getSymbolPieces()
                 + " _ " + _cells.at(pos(row + 2, col)).getSymbolPieces()
                 + " _ " + _cells.at(pos(row + 4, col)).getSymbolPieces()
                 + " _ " + _cells.at(pos(row + 6, col)).getSymbolPieces()
@@ -779,12 +916,55 @@ void Board::saveToFile(const std::string& filename) {
         }
         ++col;
     }
-    outStr += (_moveColor == true) ? "White`s move: " : "Black`s move: ";
-    outStr += posToString(_startPosition) + "->" + posToString(_endPosition.first) + '\n';
-    if (_blackPieces.size() == 0)
-        outStr += "White won. Gane over!\n";
-    else if (_whitePieces.size() == 0)
-        outStr += "Black won. Gane over!\n";
+}
 
-    out << outStr;
+void Board::print(std::ofstream& out) const {
+    size_t row = 0;
+    size_t col = 0;
+    bool flagSpace = true;
+    out << "  A B C D E F G H\n";
+    for (size_t i = 0; i < _cells.size(); i += 4) {
+        if (col % 2 == 0) {
+            row = 1;
+            flagSpace = true;
+        } else {
+            row = 0;
+            flagSpace = false;
+        }
+        if (flagSpace) {
+            out << std::to_string(col + 1) + " _ " + _cells.at(pos(row, col)).getSymbolPieces()
+                + " _ " + _cells.at(pos(row + 2, col)).getSymbolPieces()
+                + " _ " + _cells.at(pos(row + 4, col)).getSymbolPieces()
+                + " _ " + _cells.at(pos(row + 6, col)).getSymbolPieces() + '\n';
+        } else {
+            out << std::to_string(col + 1) + ' ' + _cells.at(pos(row, col)).getSymbolPieces()
+                + " _ " + _cells.at(pos(row + 2, col)).getSymbolPieces()
+                + " _ " + _cells.at(pos(row + 4, col)).getSymbolPieces()
+                + " _ " + _cells.at(pos(row + 6, col)).getSymbolPieces()
+                + " _\n";
+        }
+        ++col;
+    }
+}
+
+void Board::save() {
+    if (_cells.empty())
+        return;
+    std::ofstream out(_outPath);
+    print(out);
+    // если нет возможных ходов
+    if (_isGameOver && _endPosition.first == pos(0, 0)) {
+        if (_moveColor)
+            out << "White won, no possible moves. Game over!\n";
+        else
+            out << "Black won, no possible moves. Game over!\n";
+        return;
+    }
+    auto colorInfo = (_moveColor) ? "White`s move:" : "Black`s move:";
+    out << colorInfo + pu::posToString(_startPosition) + "->" + pu::posToString(_endPosition.first) + '\n';
+    
+    if (_isGameOver && _moveColor)
+        out << "White won. Game over!\n";
+    else if (_isGameOver && !_moveColor)
+        out << "Black won. Game over!\n";
 }

@@ -1,9 +1,11 @@
-#pragma once
+п»ї#ifndef CELL_HPP
+#define CELL_HPP
+
 #include <utility>
-#include <tuple>
 
 using pos = std::pair<size_t, size_t>;
-using pos_threat = std::tuple<pos, pos, pos>;
+using posMove = std::pair<pos, pos>;
+
 const char BLANK = '0';
 const char BLACK = 'b';
 const char WHITE = 'w';
@@ -18,12 +20,16 @@ public:
 
     Cell(State state, bool queen);
 
+    Cell& operator = (const Cell& cell);
+
     ~Cell() = default;
 
     State getState() const;
-    // Находится ли на этой клетке дамка
+
+    // РќР°С…РѕРґРёС‚СЃСЏ Р»Рё РЅР° СЌС‚РѕР№ РєР»РµС‚РєРµ РґР°РјРєР°
     bool isQueen() const;
-    // Возвращает символ фигуры
+
+    // Р’РѕР·РІСЂР°С‰Р°РµС‚ СЃРёРјРІРѕР» С„РёРіСѓСЂС‹
     char getSymbolPieces() const;
 
     void setState(State state);
@@ -36,3 +42,4 @@ private:
     bool _queen;
 };
 
+#endif // CELL_HPP
