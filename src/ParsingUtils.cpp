@@ -243,4 +243,24 @@ namespace pu {
         }
         return startPos;
     }
+
+    std::pair<char, size_t> parsArgv(const char* color, const char* depth) {
+        char player;
+        if (color == "WHITE")
+            player = WHITE;
+        else if (color == "BLACK")
+            player = BLACK;
+        else if (color[0] == 'w')
+            player = WHITE;
+        else if (color[0] == 'b')
+            player = BLACK;
+        else
+            player = 'w';
+
+        auto d = std::atoi(depth);
+        if (d > 8)
+            d = 8;
+        return { player, d };
+    }
+
 } // namespace cu

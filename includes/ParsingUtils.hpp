@@ -23,6 +23,9 @@ namespace pu {
     // Аналогично предидущему только наоборот
     pos stringToPos(const std::string& str);
 
+    // Парс входных аргументов
+    std::pair<char, size_t> parsArgv(const char* color, const char* depth);
+
 } // namespace pu
 
 #endif // PARSINGUTILS_HPP

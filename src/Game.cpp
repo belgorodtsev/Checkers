@@ -20,6 +20,12 @@ void Game::calculateBestMove(const char player, size_t depth) {
     _board->calculateBestMove(player, depth);
 }
 
+// Расчёт лучшего хода
+void Game::calculateBestMove(const char* color, const char* depth) {
+    auto res = pu::parsArgv(color, depth);
+    _board->calculateBestMove(res.first, res.second);
+}
+
 void Game::makeBestMove() {
     _board->makeBestMove();
 }
