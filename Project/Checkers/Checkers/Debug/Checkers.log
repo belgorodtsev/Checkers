@@ -1,7 +1,15 @@
 ﻿  Board.cpp
+  Cell.cpp
+  Exception.cpp
   Game.cpp
+  IO.cpp
+  Logger.cpp
   main.cpp
+  ParsingUtils.cpp
+c:\users\sergei\source\repos\checkers\checkers\parsingutils.cpp(113): warning C4018: <: несоответствие типов со знаком и без знака
   Создание кода...
+c:\users\sergei\source\repos\checkers\checkers\logger.cpp(92): warning C4715: Logger::level_str: значение возвращается не при всех путях выполнения
+c:\users\sergei\source\repos\checkers\checkers\io.cpp(38): warning C4715: io::setMovePos: значение возвращается не при всех путях выполнения
 c:\users\sergei\source\repos\checkers\checkers\board.cpp(170): warning C4715: Board::getVictimQueen: значение возвращается не при всех путях выполнения
 c:\users\sergei\source\repos\checkers\checkers\board.cpp(446): warning C4715: Board::getListCombatPieces: значение возвращается не при всех путях выполнения
   Checkers.vcxproj -> C:\Users\Sergei\source\repos\Checkers\Debug\Checkers.exe
