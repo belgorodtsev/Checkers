@@ -1,4 +1,7 @@
 ﻿  Board.cpp
+  Game.cpp
+  main.cpp
+  Создание кода...
 c:\users\sergei\source\repos\checkers\checkers\board.cpp(170): warning C4715: Board::getVictimQueen: значение возвращается не при всех путях выполнения
 c:\users\sergei\source\repos\checkers\checkers\board.cpp(446): warning C4715: Board::getListCombatPieces: значение возвращается не при всех путях выполнения
   Checkers.vcxproj -> C:\Users\Sergei\source\repos\Checkers\Debug\Checkers.exe

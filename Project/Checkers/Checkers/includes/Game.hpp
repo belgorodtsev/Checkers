@@ -21,6 +21,9 @@ public:
     // Расчёт лучшего хода
     void calculateBestMove(const char color, size_t depth);
 
+    // Расчёт лучшего хода
+    void calculateBestMove(const char* color, const char* depth);
+
     // Сделать лучший ход
     void makeBestMove();
 
