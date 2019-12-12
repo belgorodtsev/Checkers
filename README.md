@@ -1,4 +1,4 @@
-# Шашки :hankey:
+# Шашки :fire::bomb::video_game:
 
 [Теоретическая часть](./theory.md)
 
