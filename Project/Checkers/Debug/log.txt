@@ -1,4 +1,0 @@
-Thu Dec 12 00:34:44 2019 -- [INF] -- White`s move:C6->E4
-Thu Dec 12 00:34:44 2019 -- [INF] -- White won. Game over!
-Thu Dec 12 08:23:29 2019 -- [CRT] -- Invalid input!
-Thu Dec 12 08:23:30 2019 -- [INF] -- Black`s move:F3->G4

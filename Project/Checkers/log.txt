@@ -1,0 +1,7 @@
+Thu Dec 12 00:52:36 2019 -- [INF] -- White`s move:C6->E4
+Thu Dec 12 00:52:36 2019 -- [INF] -- White won. Game over!
+Thu Dec 12 00:52:45 2019 -- [INF] -- White`s move:C6->E4
+Thu Dec 12 00:52:45 2019 -- [INF] -- White won. Game over!
+Thu Dec 12 09:17:37 2019 -- [INF] -- White`s move:H3->D3
+Thu Dec 12 09:39:19 2019 -- [INF] -- White`s move:H3->D3
+Thu Dec 12 19:15:05 2019 -- [INF] -- White`s move:H3->D3
